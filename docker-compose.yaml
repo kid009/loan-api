@@ -1,0 +1,98 @@
+# Network for Laravel
+networks:
+  web_network:
+    name: laravel
+    driver: bridge
+
+services:
+
+  # MySQL Database Service
+  db:
+    image: mysql:8.0
+    container_name: loan_api_mysql
+    volumes:
+      - ./mysql/data:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=1234
+      - MYSQL_DATABASE=loan_api_db
+      - MYSQL_USER=admin
+      - MYSQL_PASSWORD=1234
+    ports:
+      - "3310:3306"
+    restart: always
+    networks:
+      - web_network
+
+  # Redis (caching)
+  redis:
+    image: redis:alpine
+    container_name: loan_api_redis
+    ports:
+      - 6379:6379
+    volumes: 
+      - ./redis/data:/data
+    restart: always
+    networks:
+      - web_network  
+
+  # MailHog (local mail testing)
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: loan_api_mailhog
+    ports:
+      - 8025:8025
+      - 1025:1025
+    restart: always
+    tty: true
+    networks:
+      - web_network
+
+  # PHP App Service 
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: laravel-app
+    container_name: loan_api_app
+    restart: always
+    volumes:
+      - ./src:/var/www
+    networks:
+      - web_network
+    depends_on:
+      - db
+      - redis
+
+  # Nginx Web Server Service
+  nginx:
+    image: nginx:1.23.1-alpine
+    container_name: loan_api_nginx
+    volumes:
+      - ./src:/var/www
+      - ./nginx/conf:/etc/nginx/conf.d
+    ports:
+      - "8100:80"
+    restart: always
+    networks:
+      - web_network
+    depends_on:
+      - app
+
+  # phpMyAdmin (MySQL managment)
+  phpmyadmin:
+    image: phpmyadmin:5.1.0-apache
+    depends_on:
+      - db
+    container_name: loan_api_phpmyadmin
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: admin
+      PMA_PASSWORD: 1234
+    ports:
+      - 8200:80
+    restart: always
+    tty: true
+    networks:
+      - web_network
+
