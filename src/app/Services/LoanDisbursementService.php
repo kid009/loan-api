@@ -7,6 +7,7 @@ use App\Models\Loan;
 use App\Models\LoanTransaction;
 use Illuminate\Support\Facades\DB;
 use App\DTOs\DisburseLoanDTO;
+use App\Jobs\SendDisbursementEmailJob;
 
 class LoanDisbursementService
 {
@@ -52,6 +53,8 @@ class LoanDisbursementService
         'reference_no' => $dto->referenceNo,
         'status'       => 'success',
       ]);
+
+      SendDisbursementEmailJob::dispatch($loan->user, $transaction);
 
       return $transaction;
     });
