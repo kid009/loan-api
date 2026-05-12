@@ -1,6 +1,6 @@
 <?php
 
-namespace App\DTOs;
+namespace App\Services;
 
 use Exception;
 use App\Models\Loan;
@@ -19,13 +19,13 @@ class LoanDisbursementService
 
     if ($existingTx) {
       // คืนค่ารายการเดิมกลับไปเลย ไม่ต้องหักเงินใหม่
-      return $existingTx;
+      throw new Exception("หมายเลขอ้างอิงนี้ (Ref No) ถูกใช้งานไปแล้ว");
     }
 
     // 🛡️ ปราการด่านที่ 2: Database Transaction & Lock (ป้องกัน Race Condition)
     return DB::transaction(function () use ($dto) {
       // ดึงข้อมูลสัญญามาและ "ล็อค" แถวนี้ไว้ (ใครเข้ามาพร้อมกันต้องรอคิว)
-      $loan = Loan::where('id', $dto->loanId)->lockForUpdate()->first();
+      $loan = Loan::where('id', $dto->loan_id)->lockForUpdate()->first();
 
       if (!$loan) {
         throw new Exception("ไม่พบข้อมูลวงเงินสินเชื่อ");
@@ -50,7 +50,7 @@ class LoanDisbursementService
       $transaction = LoanTransaction::create([
         'loan_id'      => $loan->id,
         'amount'       => $dto->amount,
-        'reference_no' => $dto->referenceNo,
+        'reference_no' => $dto->reference_no,
         'status'       => 'success',
       ]);
 

@@ -11,7 +11,7 @@ services:
     image: mysql:8.0
     container_name: loan_api_mysql
     volumes:
-      - ./mysql/data:/var/lib/mysql
+      - db_data:/var/lib/mysql
     environment:
       - MYSQL_ROOT_PASSWORD=1234
       - MYSQL_DATABASE=loan_api_db
@@ -96,3 +96,5 @@ services:
     networks:
       - web_network
 
+volumes:
+  db_data:
