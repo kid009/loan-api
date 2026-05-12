@@ -19,6 +19,10 @@ Loan API is a Laravel-based REST API for managing loan disbursements, fully cont
 - **Async Email Notifications** — Disbursement success emails are dispatched as queued jobs
 - **UUID Primary Keys** — All models use auto-generated UUIDs
 
+### Architecture Diagram
+
+![Overall Architecture Diagram](./architecture-diagram.png)
+
 ---
 
 ## 2. Objective
@@ -64,8 +68,17 @@ Provide a safe and reliable loan disbursement system that:
    ```
 
 4. **Run migrations**
+
    ```bash
    docker exec -it loan_api_app php artisan migrate
+   ```
+
+5. **Start the queue worker**
+
+   Open a new terminal and run:
+
+   ```bash
+   docker exec -it loan_api_app php artisan queue:work
    ```
 
 ### API Endpoint
@@ -83,7 +96,7 @@ Provide a safe and reliable loan disbursement system that:
 ```json
 {
   "loan_id": "9d2e1a3b-4c5f-6789-a0b1-c2d3e4f5a6b7",
-  "amount": 5000.0,
+  "amount": 5000.00,
   "reference_no": "TXN-20260512-001"
 }
 ```
@@ -97,7 +110,7 @@ Provide a safe and reliable loan disbursement system that:
   "data": {
     "transaction_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "reference_no": "TXN-20260512-001",
-    "amount": 5000.0
+    "amount": 5000.00
   }
 }
 ```
@@ -110,6 +123,12 @@ Provide a safe and reliable loan disbursement system that:
   "message": "หมายเลขอ้างอิงนี้ (Ref No) ถูกใช้งานไปแล้ว"
 }
 ```
+
+### Web UI Demo
+
+Test the end-to-end flow directly via the browser without using Postman:
+
+- **URL:** [http://localhost:8100/demo-loan](http://localhost:8100/demo-loan)
 
 ### Service Ports
 
@@ -132,50 +151,3 @@ To remove all data (including the database volume):
 ```bash
 docker-compose down -v
 ```
-
-## 4. Overall Architecture Diagram
-
-sequenceDiagram
-participant Client as Client (Web/Postman)
-participant API as DisbursementController
-participant Service as DisbursementService
-participant DB as MySQL Database
-participant Redis as Redis Queue
-participant Worker as Queue Worker
-participant Mail as MailHog
-
-    Client->>API: POST /api/v1/disbursements (amount, ref_no)
-    API->>API: Validate Request (FormRequest)
-    API->>Service: Pass Data via DTO
-
-    %% Idempotency Check
-    Service->>DB: Check if ref_no exists
-    alt Transaction Exists (Idempotency)
-        DB-->>Service: Return existing record
-        Service-->>API: Throw Exception / Return old record
-        API-->>Client: 400 Bad Request / 200 OK
-    else New Transaction
-        %% DB Transaction & Lock
-        Service->>DB: Start DB::transaction
-        Service->>DB: lockForUpdate() on Loan record
-        Note over Service, DB: Prevents Race Conditions
-
-        alt Insufficient Balance
-            Service-->>API: Throw Exception
-            API-->>Client: 400 Bad Request
-        else Sufficient Balance
-            Service->>DB: Deduct Balance & Save LoanTransaction
-            DB-->>Service: Commit Transaction
-
-            %% Async Queue
-            Service->>Redis: Dispatch Job (Send Email)
-            Service-->>API: Return Transaction Data
-            API-->>Client: 200 OK (Success)
-        end
-    end
-
-    %% Background Process
-    loop Asynchronous Process
-        Worker->>Redis: Pick up Job
-        Worker->>Mail: Send Success Email
-    end
